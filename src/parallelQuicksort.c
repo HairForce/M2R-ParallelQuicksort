@@ -19,8 +19,9 @@
 #include <string.h>
 
 #define DNUM 1000000
-#define THREAD_LEVEL 10
-
+#ifndef THREAD_LEVEL 
+  #define THREAD_LEVEL 10
+#endif
 //for sequential and parallel implementation
 void swap(double lyst[], int i, int j);
 int partition(double lyst[], int lo, int hi);
@@ -56,11 +57,15 @@ int main(int argc, char *argv[])
   double diff;
 
   srand(time(NULL));            //seed random
-
+  int nbthread = THREAD_LEVEL;
   int NUM = DNUM;
-  if (argc == 2)                //user specified list size.
+  if (argc >= 2)                //user specified list size.
   {
     NUM = atoi(argv[1]);
+    if (argc == 3)
+    {
+      nbthread = atoi(argv[2]);
+    }
   }
   //Want to compare sorting on the same list,
   //so backup.
@@ -97,7 +102,7 @@ int main(int argc, char *argv[])
   memcpy(lyst, lystbck, NUM * sizeof(double));
 
   gettimeofday(&start, NULL);
-  parallelQuicksort(lyst, NUM, THREAD_LEVEL);
+  parallelQuicksort(lyst, NUM, nbthread);
   gettimeofday(&end, NULL);
 
   if (!isSorted(lyst, NUM)) {

@@ -1,0 +1,113 @@
+---
+title: "Analyse"
+author: "CRASTES de PAULET Damien"
+date: "March 13, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plyr);
+library(ggplot2);
+ ### FtoR = paste("~/Documents/M2R-ParallelQuicksort/data/full_gen_1/csvs/""_ThreadsRaw.csv",sep = "");
+```
+
+
+#1èrs essais et comparaisons rapides
+##1ère génération
+les données sont générées grace au script data_gen.sh, il prend enargument un nom de dossier dans lequel il va créer tout les fichiers nécessaires a l'analyse. (Attention l'execution est longue (5*750 exécutions de quicksort avec des tailles variables)).
+```{r}
+
+  raw = read.csv("~/Documents/M2R-ParallelQuicksort/data/full_gen_1/csvs/10_ThreadsRaw.csv");
+  datas<-ddply(raw, c("Size", "Type"), summarize,
+				num = length(Time), mean = mean(Time), sd = sd(Time),
+				se = 2*sd/sqrt(num))
+  raw_datas = ddply(raw, c("Size", "Type")) 
+datas;
+```
+
+Bon, on peut déja voir quelques résultats : pour toutes les tailles sauf 100000 elements, le tri multi thréadé n'est pas performant, et, a ce nomre d'éléments, la écart type est très important.
+
+Simplifions l'analyse avec un peu d'affichage graphique
+```{r}
+ggplot(data = raw_datas, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+```
+
+Maintenant on peut voir que le tri sequentiel et celui de base du C sont très similaires au niveau des performances, les valeurs en temps étant dans le même intervalle pour toutes les tailles.
+
+On voit aussi que le tri multithreadé est certes plus lent sur ces tailles mais il semble suivre une courbe de regression linéaire et non exponentielle, il va falloir creuser ça.
+
+##2ème génération
+
+cette fois si on pousse l'algorithme un peu plus loin avec des tableaux de 10 millions d'éléments, le script a pour cela était modifié pour générer plus de données et en prévision de l'étapde d'analyse du threading, le code à était augmenté afin de permettre la selection facile du nombre de threads.
+
+```{r}
+raw = read.csv("~/Documents/M2R-ParallelQuicksort/data/full_gen_2/csvs/10_ThreadsRaw.csv");
+  raw_datas = ddply(raw, c("Size", "Type"))
+  datas<-ddply(raw, c("Size", "Type"), summarize,
+				num = length(Time), mean = mean(Time), sd = sd(Time),
+				se = 2*sd/sqrt(num))
+  datas;
+  ggplot(data = raw_datas, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+
+```
+Il semblerait que contrairement aux attentes, la durée de traitement par multi-threading suive en fait la même courbe que les autres traitements.
+Pourquoi met on alors autant de temps pour 1000000 d'éléments quand on le compare aux autres?
+
+## Influence du nombre de thread
+Vu que le nombre d'éléments semble ne pas être le critère principal de distinction, la réponse la plus logique à cette question serait que le temps de commnication entre les threads compense le gain possible de performances.
+
+On génère donc de nouvelles données d'études, avec plusieurs niveau de threads. On a donc 1,2,5,10 (déja traité) et 20 threads en données analysables.
+
+A chaque affichage graphique, les données du tri Built-In et Sequentiel seront présente pour la lisibilité.
+```{r}
+FtoR=NULL
+for(i in c(1,2,5,10,20)){
+  FtoR[i] = paste("~/Documents/M2R-ParallelQuicksort/data/full_gen_1/csvs/",i,"_ThreadsRaw.csv",sep = "");
+}
+
+raw1T = read.csv(FtoR[1]);
+raw2T = read.csv(FtoR[2]);
+raw5T = read.csv(FtoR[5]);
+raw20T = read.csv(FtoR[20]);
+raw10T = read.csv(FtoR[10])
+  
+  raw_datas1T = ddply(raw1T, c("Size", "Type")) 
+  ggplot(data = raw_datas1T, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+
+
+  raw_datas2T = ddply(raw1T, c("Size", "Type")) 
+  ggplot(data = raw_datas2T, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+
+  raw_datas5T = ddply(raw5T, c("Size", "Type")) 
+  datas5T<-ddply(raw5T, c("Size", "Type"), summarize,
+				num = length(Time), mean = mean(Time), sd = sd(Time),
+				se = 2*sd/sqrt(num))
+  datas5T;
+  ggplot(data = raw_datas5T, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+  
+  
+  
+
+  raw_datas10T = ddply(raw10T, c("Size", "Type")) 
+  ggplot(data = raw_datas10T, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+
+  raw_datas20T = ddply(raw20T, c("Size", "Type")) 
+  ggplot(data = raw_datas20T, aes(x=Size, y=Time, color=factor(Type))) + geom_point() + scale_x_log10() + facet_wrap(~Type)
+
+```
+
+On peut clairement voir que le nombre de thread influe sur le temps moyen de traitement, mais a partir d'un point, la machine perd trop de temps a faire communiquer les threads et ce bénéfice disparait.
+Sur une machine plus performante que la mienne, il pourrait être possible de tester de manière précise les limites de chacun des algorithmes afin de tester les limites des diférents modèles, et les cas d'utilisation du multi-threading
+
+#Conclusion
+
+Dans le cas de ma machine, il est assez facile de tirer des conclusions sur les performances du multi-Threading.
+  Pour des tableaux de peite taille, la différence est importante comparé au temps d'éxécution, cea le rend donc inéficace.
+  
+  Meme en réduisant le nombre de threads pour réduire la perte en communication, on observe les mêmes résutats.
+  
+  Enfin, pour de grands tableaux, le temps moyen reste supérieur, mais la différence devient minime.
+  
+Pour la comparaison entre le modèle séquentiel et celui Built_In, il est difficile de distinguer une véritable différence de performance. Il peut donc être utile de le porter le modèle séquentiel en remplacement du Built-In pour pouvoir exécuter cet algorithme sur plus de machine.
+
